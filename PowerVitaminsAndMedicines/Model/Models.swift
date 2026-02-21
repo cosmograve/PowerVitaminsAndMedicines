@@ -1,8 +1,6 @@
 import Foundation
 
-// MARK: - Medication Category
 
-/// Medication category (for icons/filters/stats).
 enum MedicationCategory: String, Codable, CaseIterable, Identifiable {
     case vitamins
     case medicines
@@ -10,7 +8,6 @@ enum MedicationCategory: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Display title for UI.
     var title: String {
         switch self {
         case .vitamins: return "Vitamins"
@@ -19,7 +16,6 @@ enum MedicationCategory: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Emoji icon (as in the spec).
     var icon: String {
         switch self {
         case .vitamins: return "💊"
@@ -29,13 +25,10 @@ enum MedicationCategory: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Frequency
 
-/// Intake frequency.
-/// MVP: daily / every other day / weekdays / custom weekdays.
 enum MedicationFrequency: Codable, Equatable, Hashable {
     case daily
-    case everyOtherDay(anchor: Date) // anchor date for "every other day"
+    case everyOtherDay(anchor: Date)
     case weekdays
     case customWeekdays(Set<Weekday>)
 
@@ -90,7 +83,6 @@ enum MedicationFrequency: Codable, Equatable, Hashable {
         }
     }
 
-    /// Display title for UI.
     var title: String {
         switch self {
         case .daily: return "Daily"
@@ -110,11 +102,10 @@ extension MedicationFrequency {
             return true
 
         case .weekdays:
-            let w = calendar.component(.weekday, from: day) // 1=Sun ... 7=Sat
+            let w = calendar.component(.weekday, from: day)
             return w >= 2 && w <= 6
 
         case .everyOtherDay(let anchor):
-            // Anchor-based alternation (0,2,4... days diff)
             let d1 = calendar.startOfDay(for: anchor)
             let d2 = calendar.startOfDay(for: day)
             let diff = calendar.dateComponents([.day], from: d1, to: d2).day ?? 0
@@ -127,9 +118,7 @@ extension MedicationFrequency {
     }
 }
 
-// MARK: - Weekday
 
-/// ISO weekday: Monday=1 ... Sunday=7.
 enum Weekday: Int, Codable, CaseIterable, Identifiable, Comparable {
     case monday = 1
     case tuesday = 2
@@ -174,10 +163,7 @@ extension Weekday {
     }
 }
 
-// MARK: - Time Of Day
 
-/// A time-of-day without a date.
-/// Stores hour/minute - enough for scheduling notifications and generating events.
 struct TimeOfDay: Codable, Hashable {
     let hour: Int
     let minute: Int
@@ -187,13 +173,11 @@ struct TimeOfDay: Codable, Hashable {
         self.minute = max(0, min(59, minute))
     }
 
-    /// Create from Date (e.g. from DatePicker).
     init(date: Date, calendar: Calendar = .current) {
         let comps = calendar.dateComponents([.hour, .minute], from: date)
         self.init(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
     }
 
-    /// Convert to DateComponents for notification triggers.
     func asDateComponents() -> DateComponents {
         var c = DateComponents()
         c.hour = hour
@@ -201,7 +185,6 @@ struct TimeOfDay: Codable, Hashable {
         return c
     }
 
-    /// Format as "HH:mm" (24h).
     func formatted24h() -> String {
         let hh = String(format: "%02d", hour)
         let mm = String(format: "%02d", minute)
@@ -209,16 +192,13 @@ struct TimeOfDay: Codable, Hashable {
     }
 }
 
-// MARK: - Attachments
 
-/// Attachment type: package photo or instructions (photo or PDF).
 enum AttachmentKind: String, Codable {
     case packagePhoto
     case instructionPhoto
     case instructionPDF
 }
 
-/// Attachment reference: store relative file path (inside app container).
 struct AttachmentRef: Codable, Identifiable, Hashable {
     let id: UUID
     let kind: AttachmentKind
@@ -233,25 +213,37 @@ struct AttachmentRef: Codable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Medication
 
-/// Medication card.
 struct Medication: Codable, Identifiable, Hashable {
     let id: UUID
 
-    var name: String                // "Magnesium Citrate"
-    var subtitle: String            // "200 mg"
+    var name: String
+    var subtitle: String
     var category: MedicationCategory
 
-    var expiryDate: Date?           // optional
-    var intakeTime: TimeOfDay       // single time for MVP
+    var expiryDate: Date?
+    var intakeTime: TimeOfDay
     var frequency: MedicationFrequency
+    var notificationsEnabled: Bool
 
-    /// Attachments: package + instructions.
     var attachments: [AttachmentRef]
 
     var createdAt: Date
     var updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case subtitle
+        case category
+        case expiryDate
+        case intakeTime
+        case frequency
+        case notificationsEnabled
+        case attachments
+        case createdAt
+        case updatedAt
+    }
 
     init(
         id: UUID = UUID(),
@@ -261,6 +253,7 @@ struct Medication: Codable, Identifiable, Hashable {
         expiryDate: Date?,
         intakeTime: TimeOfDay,
         frequency: MedicationFrequency,
+        notificationsEnabled: Bool = true,
         attachments: [AttachmentRef] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -272,27 +265,54 @@ struct Medication: Codable, Identifiable, Hashable {
         self.expiryDate = expiryDate
         self.intakeTime = intakeTime
         self.frequency = frequency
+        self.notificationsEnabled = notificationsEnabled
         self.attachments = attachments
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        subtitle = try container.decode(String.self, forKey: .subtitle)
+        category = try container.decode(MedicationCategory.self, forKey: .category)
+        expiryDate = try container.decodeIfPresent(Date.self, forKey: .expiryDate)
+        intakeTime = try container.decode(TimeOfDay.self, forKey: .intakeTime)
+        frequency = try container.decode(MedicationFrequency.self, forKey: .frequency)
+        notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
+        attachments = try container.decodeIfPresent([AttachmentRef].self, forKey: .attachments) ?? []
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(subtitle, forKey: .subtitle)
+        try container.encode(category, forKey: .category)
+        try container.encode(expiryDate, forKey: .expiryDate)
+        try container.encode(intakeTime, forKey: .intakeTime)
+        try container.encode(frequency, forKey: .frequency)
+        try container.encode(notificationsEnabled, forKey: .notificationsEnabled)
+        try container.encode(attachments, forKey: .attachments)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+    }
 }
 
-// MARK: - Dose Events (history / calendar / stats)
 
-/// Intake status we log.
 enum IntakeStatus: String, Codable {
     case planned
     case taken
     case missed
 }
 
-/// A single scheduled dose (the unit for stats).
 struct DoseEvent: Codable, Identifiable, Hashable {
     let id: UUID
     let medicationId: UUID
 
-    /// Local scheduled date-time.
     let scheduledAt: Date
 
     var status: IntakeStatus
@@ -313,9 +333,7 @@ struct DoseEvent: Codable, Identifiable, Hashable {
     }
 }
 
-// MARK: - App Snapshot (stored in UserDefaults)
 
-/// Stored as a single JSON blob in UserDefaults.
 struct AppSnapshot: Codable {
     var medications: [Medication]
     var doseEvents: [DoseEvent]

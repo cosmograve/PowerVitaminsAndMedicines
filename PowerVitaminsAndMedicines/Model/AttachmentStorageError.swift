@@ -1,14 +1,12 @@
 import Foundation
 import UIKit
 
-/// Errors for attachment storage operations.
 enum AttachmentStorageError: Error {
     case cannotCreateBaseDirectory
     case cannotWriteFile
     case fileNotFound
 }
 
-/// Stores photos/PDFs locally in Application Support/Attachments.
 final class LocalAttachmentsManager {
 
     static let shared = LocalAttachmentsManager()
@@ -20,7 +18,6 @@ final class LocalAttachmentsManager {
         self.fileManager = fileManager
     }
 
-    /// Application Support directory URL.
     private func applicationSupportURL() throws -> URL {
         guard let url = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             throw AttachmentStorageError.cannotCreateBaseDirectory
@@ -28,7 +25,6 @@ final class LocalAttachmentsManager {
         return url
     }
 
-    /// Attachments folder URL: Application Support/Attachments
     private func attachmentsDirectoryURL() throws -> URL {
         let base = try applicationSupportURL()
         let dir = base.appendingPathComponent(baseFolderName, isDirectory: true)
@@ -43,8 +39,6 @@ final class LocalAttachmentsManager {
         return dir
     }
 
-    /// Save a UIImage as JPEG into local storage.
-    /// - Returns: relativePath like "Attachments/uuid.jpg"
     func saveJPEG(image: UIImage, compressionQuality: CGFloat = 0.9) throws -> String {
         let dir = try attachmentsDirectoryURL()
         let filename = "\(UUID().uuidString).jpg"
@@ -63,8 +57,6 @@ final class LocalAttachmentsManager {
         return "\(baseFolderName)/\(filename)"
     }
 
-    /// Save arbitrary data (e.g. PDF).
-    /// - Returns: relativePath like "Attachments/uuid.pdf"
     func saveData(_ data: Data, fileExtension: String) throws -> String {
         let dir = try attachmentsDirectoryURL()
         let safeExt = fileExtension.lowercased()
@@ -80,13 +72,11 @@ final class LocalAttachmentsManager {
         return "\(baseFolderName)/\(filename)"
     }
 
-    /// Get absolute URL by relative path.
     func url(forRelativePath relativePath: String) throws -> URL {
         let base = try applicationSupportURL()
         return base.appendingPathComponent(relativePath, isDirectory: false)
     }
 
-    /// Delete an attachment file.
     func delete(relativePath: String) throws {
         let url = try url(forRelativePath: relativePath)
         guard fileManager.fileExists(atPath: url.path) else {

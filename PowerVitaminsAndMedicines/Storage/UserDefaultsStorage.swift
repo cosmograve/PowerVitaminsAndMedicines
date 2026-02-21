@@ -1,16 +1,12 @@
 import Foundation
 
-/// Storage errors.
 enum StorageError: Error {
     case encodingFailed
     case decodingFailed
 }
 
-/// UserDefaults JSON storage for the entire app snapshot.
-/// This type is intentionally NOT main-actor isolated.
 final class UserDefaultsStorage {
 
-    /// Make the singleton explicitly nonisolated so it can be referenced from anywhere.
     nonisolated static let shared = UserDefaultsStorage()
 
     private let defaults: UserDefaults
@@ -22,7 +18,6 @@ final class UserDefaultsStorage {
     private init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        // ISO8601 dates: stable + readable.
         let enc = JSONEncoder()
         enc.outputFormatting = [.sortedKeys]
         enc.dateEncodingStrategy = .iso8601
@@ -33,7 +28,6 @@ final class UserDefaultsStorage {
         self.decoder = dec
     }
 
-    /// Load snapshot. If none exists, returns empty.
     func load() throws -> AppSnapshot {
         guard let data = defaults.data(forKey: key) else {
             return AppSnapshot()
@@ -45,7 +39,6 @@ final class UserDefaultsStorage {
         }
     }
 
-    /// Save snapshot.
     func save(_ snapshot: AppSnapshot) throws {
         do {
             let data = try encoder.encode(snapshot)
@@ -55,7 +48,6 @@ final class UserDefaultsStorage {
         }
     }
 
-    /// Remove all stored data.
     func reset() {
         defaults.removeObject(forKey: key)
     }

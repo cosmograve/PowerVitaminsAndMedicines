@@ -39,7 +39,6 @@ struct AppNavBar: View {
                 }
                 .padding(.horizontal, sidePadding)
             } else {
-                // Only title centered
                 Text(title)
                     .font(AppFont.poppins(size: 24, weight: .semibold))
                     .foregroundColor(AppColors.yellow)

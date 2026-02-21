@@ -1,15 +1,6 @@
-
-
-
 import Foundation
 import UserNotifications
 
-// MARK: - NotificationManager
-// Responsibilities:
-// 1) Request notification permission.
-// 2) Register action categories (Taken / Missed).
-// 3) Schedule notifications for medications.
-// 4) Provide stable identifiers so we can map notification -> medication + scheduled time.
 
 final class NotificationManager {
 
@@ -17,16 +8,12 @@ final class NotificationManager {
 
     private init() {}
 
-    // Category id used by all medication notifications.
     static let medicationCategoryId = "medication.category"
 
-    // Action ids.
     static let actionTakenId = "medication.action.taken"
     static let actionMissedId = "medication.action.missed"
 
-    // MARK: - Setup
 
-    /// Call once at app start.
     func configureCategories() {
         let taken = UNNotificationAction(
             identifier: Self.actionTakenId,
@@ -50,7 +37,6 @@ final class NotificationManager {
         UNUserNotificationCenter.current().setNotificationCategories([category])
     }
 
-    /// Ask user permission (recommended at app start).
     func requestAuthorizationIfNeeded() async -> Bool {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
@@ -72,9 +58,7 @@ final class NotificationManager {
         }
     }
 
-    // MARK: - Scheduling
 
-    /// Remove all pending notifications for a medication (before re-scheduling).
     func removePending(for medicationId: UUID) {
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
             let ids = requests
@@ -85,10 +69,7 @@ final class NotificationManager {
         }
     }
 
-    /// Schedule notifications for next N days (rolling window).
-    /// MVP: 30 days forward. On app launch you can refresh window.
     func scheduleMedication(_ med: Medication, daysForward: Int = 30) {
-        // First clear previous schedule to avoid duplicates.
         removePending(for: med.id)
 
         let center = UNUserNotificationCenter.current()
@@ -100,17 +81,14 @@ final class NotificationManager {
         for offset in 0..<daysForward {
             guard let day = calendar.date(byAdding: .day, value: offset, to: startDay) else { continue }
 
-            // Check if medication should happen on that day per frequency.
             guard med.frequency.shouldSchedule(on: day, calendar: calendar) else { continue }
 
-            // Build scheduled date with med intake time (hour/minute).
             var comps = calendar.dateComponents([.year, .month, .day], from: day)
             comps.hour = med.intakeTime.hour
             comps.minute = med.intakeTime.minute
 
             guard let fireDate = calendar.date(from: comps) else { continue }
 
-            // Don't schedule in the past.
             if fireDate < now { continue }
 
             let content = UNMutableNotificationContent()
@@ -118,16 +96,13 @@ final class NotificationManager {
             content.sound = .default
             content.categoryIdentifier = Self.medicationCategoryId
 
-            // Put routing info in userInfo.
             content.userInfo = [
                 "medicationId": med.id.uuidString,
                 "scheduledAt": fireDate.timeIntervalSince1970
             ]
 
-            // Calendar trigger
             let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
 
-            // Stable identifier so we can remove/update later.
             let requestId = notificationId(medicationId: med.id, scheduledAt: fireDate)
             let request = UNNotificationRequest(identifier: requestId, content: content, trigger: trigger)
 
@@ -135,7 +110,6 @@ final class NotificationManager {
         }
     }
 
-    /// Identifier format: med:<uuid>:<timestamp>
     func notificationId(medicationId: UUID, scheduledAt: Date) -> String {
         "med:\(medicationId.uuidString):\(Int(scheduledAt.timeIntervalSince1970))"
     }

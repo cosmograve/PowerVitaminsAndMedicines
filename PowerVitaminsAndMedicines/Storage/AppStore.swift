@@ -7,16 +7,13 @@ final class AppStore: ObservableObject {
     
     static weak var sharedIfYouHaveOne: AppStore?
 
-    // MARK: - Published state
 
     @Published private(set) var medications: [Medication] = []
     @Published private(set) var doseEvents: [DoseEvent] = []
 
-    // MARK: - Dependencies
 
     private let storage: UserDefaultsStorage
 
-    // MARK: - Init
 
     init(storage: UserDefaultsStorage = .shared) {
         self.storage = storage
@@ -24,7 +21,6 @@ final class AppStore: ObservableObject {
         loadFromDisk()
     }
 
-    // MARK: - Persistence
 
     private func loadFromDisk() {
         do {
@@ -32,7 +28,6 @@ final class AppStore: ObservableObject {
             self.medications = snapshot.medications
             self.doseEvents = snapshot.doseEvents
         } catch {
-            // If decoding fails, start fresh (MVP behavior).
             self.medications = []
             self.doseEvents = []
         }
@@ -43,7 +38,6 @@ final class AppStore: ObservableObject {
             let snapshot = AppSnapshot(medications: medications, doseEvents: doseEvents)
             try storage.save(snapshot)
         } catch {
-            // MVP: ignore / log if needed.
         }
     }
 
@@ -53,15 +47,17 @@ final class AppStore: ObservableObject {
         storage.reset()
     }
 
-    // MARK: - Medication CRUD
 
     func addMedication(_ medication: Medication) {
         medications.append(medication)
         sortMedications()
         persist()
 
-        // Schedule notifications for this medication
-        NotificationManager.shared.scheduleMedication(medication)
+        if medication.notificationsEnabled {
+            NotificationManager.shared.scheduleMedication(medication)
+        } else {
+            NotificationManager.shared.removePending(for: medication.id)
+        }
     }
 
     func updateMedication(_ medication: Medication) {
@@ -70,8 +66,11 @@ final class AppStore: ObservableObject {
         sortMedications()
         persist()
 
-        // Re-schedule notifications for updated rules/time
-        NotificationManager.shared.scheduleMedication(medication)
+        if medication.notificationsEnabled {
+            NotificationManager.shared.scheduleMedication(medication)
+        } else {
+            NotificationManager.shared.removePending(for: medication.id)
+        }
     }
 
     func deleteMedication(id: UUID) {
@@ -79,18 +78,35 @@ final class AppStore: ObservableObject {
         doseEvents.removeAll { $0.medicationId == id }
         persist()
 
-        // Remove pending notifications
         NotificationManager.shared.removePending(for: id)
     }
     
     func rescheduleAllNotifications() {
         for med in medications {
-            NotificationManager.shared.scheduleMedication(med)
+            if med.notificationsEnabled {
+                NotificationManager.shared.scheduleMedication(med)
+            } else {
+                NotificationManager.shared.removePending(for: med.id)
+            }
+        }
+    }
+
+    func setNotificationsEnabled(for medicationId: UUID, enabled: Bool) {
+        guard let idx = medications.firstIndex(where: { $0.id == medicationId }) else { return }
+        var updated = medications
+        updated[idx].notificationsEnabled = enabled
+        updated[idx].updatedAt = Date()
+        medications = updated
+        persist()
+
+        if enabled {
+            NotificationManager.shared.scheduleMedication(updated[idx])
+        } else {
+            NotificationManager.shared.removePending(for: medicationId)
         }
     }
 
     private func sortMedications() {
-        // Sort by intake time, then by name.
         medications.sort { a, b in
             if a.intakeTime.hour != b.intakeTime.hour { return a.intakeTime.hour < b.intakeTime.hour }
             if a.intakeTime.minute != b.intakeTime.minute { return a.intakeTime.minute < b.intakeTime.minute }
@@ -102,9 +118,7 @@ final class AppStore: ObservableObject {
         medications.first(where: { $0.id == id })
     }
 
-    // MARK: - Dose Events
 
-    /// Upsert an event (useful when generating today's schedule).
     func upsertDoseEvent(_ event: DoseEvent) {
         if let idx = doseEvents.firstIndex(where: { $0.id == event.id }) {
             doseEvents[idx] = event
@@ -115,7 +129,6 @@ final class AppStore: ObservableObject {
         persist()
     }
 
-    /// Mark an event as taken/missed.
     func markDoseEvent(id: UUID, status: IntakeStatus) {
         guard let idx = doseEvents.firstIndex(where: { $0.id == id }) else { return }
         doseEvents[idx].status = status
@@ -127,7 +140,6 @@ final class AppStore: ObservableObject {
         doseEvents.sort { $0.scheduledAt < $1.scheduledAt }
     }
 
-    /// Events for a specific day (calendar/notifications screen).
     func doseEvents(for day: Date, calendar: Calendar = .current) -> [DoseEvent] {
         let start = calendar.startOfDay(for: day)
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
@@ -170,18 +182,15 @@ final class AppStore: ObservableObject {
         for med in medications {
             guard med.frequency.shouldSchedule(on: today, calendar: cal) else { continue }
 
-            // scheduledAt today + med.intakeTime
             var comps = cal.dateComponents([.year, .month, .day], from: today)
             comps.hour = med.intakeTime.hour
             comps.minute = med.intakeTime.minute
 
             guard let scheduledAt = cal.date(from: comps) else { continue }
 
-            // If event already exists (taken/missed/pending) -> skip
             let exists = doseEvents.contains { $0.medicationId == med.id && $0.scheduledAt == scheduledAt }
             if exists { continue }
 
-            // Create "planned" event with status .planned (or .pending)
             let ev = DoseEvent(
                 id: UUID(),
                 medicationId: med.id,

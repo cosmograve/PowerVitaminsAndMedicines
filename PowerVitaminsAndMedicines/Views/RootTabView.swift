@@ -1,9 +1,6 @@
 import SwiftUI
-import UserNotifications
 
 struct RootTabView: View {
-    
-    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     @StateObject private var store = AppStore()
     
@@ -13,6 +10,7 @@ struct RootTabView: View {
     @State private var calendarPath: [AppRoute] = []
     @State private var notificationsPath: [AppRoute] = []
     @State private var statsPath: [AppRoute] = []
+    @State private var showImportantIntro: Bool = true
     
     init() {
         configureTabBarAppearance()
@@ -28,30 +26,32 @@ struct RootTabView: View {
                         case .medicationDetail(let id):
                             AddEditMedicationView(mode: .edit(id: id))
                                 .environmentObject(store)
-//                                .toolbar(.hidden, for: .tabBar)
-                            
+
+                        case .pillCard(let id):
+                            PillCardView(path: $mainPath, medicationId: id)
+                                .environmentObject(store)
+
                         case .medicationEditor(let mode):
                             AddEditMedicationView(mode: mode)
                                 .environmentObject(store)
-//                                .toolbar(.hidden, for: .tabBar)
                         }
                     }
             }
             .tabItem { Image(.tabMain); Text("") }
             .tag(0)
             
-            NavigationStack(path: $calendarPath) {
-                CalendarView()
-                    .environmentObject(store)
-            }
-            .tabItem { Image(.tabCalendar); Text("") }
-            .tag(1)
-            
             NavigationStack(path: $notificationsPath) {
                 NotificationsView()
                     .environmentObject(store)
             }
             .tabItem { Image(.tabNotifications); Text("") }
+            .tag(1)
+            
+            NavigationStack(path: $calendarPath) {
+                CalendarView()
+                    .environmentObject(store)
+            }
+            .tabItem { Image(.tabCalendar); Text("") }
             .tag(2)
             
             NavigationStack(path: $statsPath) {
@@ -62,17 +62,27 @@ struct RootTabView: View {
             .tag(3)
         }
         .tint(AppColors.red)
+        .overlay {
+            if showImportantIntro {
+                ImportantIntroView()
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
+        }
         .task {
-            // Register categories
             NotificationManager.shared.configureCategories()
             
-            // Ask permission (one-time)
             let granted = await NotificationManager.shared.requestAuthorizationIfNeeded()
             
-            // MVP decision:
-            // If granted, refresh schedules for existing meds (rolling 30 days).
             if granted {
                 store.rescheduleAllNotifications()
+            }
+
+            try? await Task.sleep(nanoseconds: 2_300_000_000)
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showImportantIntro = false
+                }
             }
         }
     }
@@ -96,5 +106,31 @@ struct RootTabView: View {
         
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+}
+
+private struct ImportantIntroView: View {
+    var body: some View {
+        ZStack {
+            AppColors.background.ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Text("!")
+                    .font(.system(size: 120, weight: .bold, design: .rounded))
+                    .foregroundColor(AppColors.yellow)
+
+                Text("Important!")
+                    .font(AppFont.poppins(size: 48 / 2, weight: .semibold))
+                    .foregroundColor(AppColors.yellow)
+
+                Text("This app is a personal medication and supplement tracker for reminder and logging purposes only. It is not a medical device, does not provide health advice, and should not replace consultation with a qualified healthcare professional.")
+                    .font(AppFont.poppins(size: 18, weight: .regular))
+                    .foregroundColor(.white.opacity(0.9))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
+                    .padding(.top, 6)
+            }
+            .padding(.top, 30)
+        }
     }
 }

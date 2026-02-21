@@ -6,30 +6,24 @@ import UIKit
 
 struct AddEditMedicationView: View {
     
-    // MARK: Dependencies
     
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     
-    // MARK: Mode
     
     let mode: AppRoute.MedicationEditorMode
     
-    // MARK: Form State
     
     @State private var name: String = ""
     @State private var dosage: String = ""
     @State private var selectedCategory: MedicationCategory = .vitamins
     
-    // Wheel pickers values
     @State private var time: Date = Date()
     @State private var startDate: Date = Date()
     
-    // Frequency
     @State private var frequencySelection: FrequencySelection = .daily
     @State private var customWeekdays: Set<Weekday> = [.monday, .wednesday, .friday]
     
-    // Attachments
     @State private var packagingUIImage: UIImage? = nil
     @State private var instructionUIImage: UIImage? = nil
     @State private var instructionPDFData: Data? = nil
@@ -40,14 +34,12 @@ struct AddEditMedicationView: View {
     @State private var existingInstructionUIImage: UIImage? = nil
     @State private var didPreload: Bool = false
     
-    // Dialogs / Sheets
     @State private var showPackagingDialog: Bool = false
     @State private var showInstructionDialog: Bool = false
     
     @State private var showPackagingCamera: Bool = false
     @State private var showInstructionCamera: Bool = false
     
-    // Gallery sheets (PhotosPicker must be triggered by a visible label)
     @State private var showPackagingGallerySheet: Bool = false
     @State private var showInstructionGallerySheet: Bool = false
     
@@ -57,34 +49,27 @@ struct AddEditMedicationView: View {
     @State private var showPackagingGallery: Bool = false
     @State private var showInstructionGallery: Bool = false
     
-    // PDF importer
     @State private var showPDFImporter: Bool = false
     
-    // Picker sheets
     @State private var showTimeSheet: Bool = false
     @State private var showStartDateSheet: Bool = false
     
-    // Full screen custom days
     @State private var showCustomDaysFullScreen: Bool = false
+    @State private var showDeleteConfirm: Bool = false
     
-    // Focus
     @FocusState private var focusedField: Field?
     private enum Field: Hashable { case name, dosage }
     
-    // MARK: Layout constants
     
     private let sidePadding: CGFloat = 20
-    private let bottomSafePaddingToButton: CGFloat = 20      // required by you
+    private let bottomSafePaddingToButton: CGFloat = 20
     private let saveHeight: CGFloat = 54
     private let saveCorner: CGFloat = 16
     
-    // These two numbers are used to ensure scroll content is not hidden under Save button.
     private var scrollBottomInset: CGFloat {
-        // button height + required padding + some breathing room
         saveHeight + bottomSafePaddingToButton + 18
     }
     
-    // MARK: Derived
     
     private var screenTitle: String {
         switch mode {
@@ -93,7 +78,6 @@ struct AddEditMedicationView: View {
         }
     }
     
-    // If you want instruction optional - remove hasInstruction.
     private var isSaveEnabled: Bool {
         let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasDosage = !dosage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -103,17 +87,14 @@ struct AddEditMedicationView: View {
         return hasName && hasDosage && hasPackaging && hasInstruction
     }
     
-    // MARK: Init
     
     init(mode: AppRoute.MedicationEditorMode) {
         self.mode = mode
     }
     
-    // MARK: Body
     
     var body: some View {
         ZStack {
-            // Background always behind everything
             AppColors.background.ignoresSafeArea()
                 .onTapGesture {
                     focusedField = nil
@@ -128,11 +109,9 @@ struct AddEditMedicationView: View {
                     onBackTap: { dismiss() }
                 )
                 
-                // Scrollable content
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         
-                        // Name
                         SectionCard(title: "Name") {
                             InsetField {
                                 TextField("", text: $name)
@@ -144,7 +123,6 @@ struct AddEditMedicationView: View {
                             }
                         }
                         
-                        // Dosage
                         SectionCard(title: "Dosage Mg") {
                             InsetField {
                                 TextField("", text: $dosage)
@@ -155,7 +133,6 @@ struct AddEditMedicationView: View {
                             }
                         }
                         
-                        // Category
                         SectionCard(title: "Category") {
                             Menu {
                                 Button("Vitamins") { selectedCategory = .vitamins }
@@ -170,7 +147,6 @@ struct AddEditMedicationView: View {
                                         
                                         Spacer()
                                         
-                                        // Dropdown marker like in screenshot
                                         Image(systemName: "triangle.fill")
                                             .font(.system(size: 10, weight: .bold))
                                             .foregroundColor(AppColors.yellow)
@@ -181,7 +157,6 @@ struct AddEditMedicationView: View {
                             .buttonStyle(.plain)
                         }
                         
-                        // Packaging
                         SectionCard(title: "Photos Of The Packaging: (Gallery)") {
                             Button { showPackagingDialog = true } label: {
                                 AttachmentInset(image: packagingUIImage ?? existingPackagingUIImage)
@@ -189,7 +164,6 @@ struct AddEditMedicationView: View {
                             .buttonStyle(.plain)
                         }
                         
-                        // Instructions
                         SectionCard(title: "Instructions(Photo/PDF From Files)") {
                             Button { showInstructionDialog = true } label: {
                                 AttachmentInset(
@@ -200,7 +174,6 @@ struct AddEditMedicationView: View {
                             .buttonStyle(.plain)
                         }
                         
-                        // Time picker row (value only; picker in sheet)
                         SectionCard(title: "TimePicker") {
                             Button {
                                 focusedField = nil
@@ -224,7 +197,6 @@ struct AddEditMedicationView: View {
                             .buttonStyle(.plain)
                         }
                         
-                        // Date picker row (value only; picker in sheet)
                         SectionCard(title: "Date Picker") {
                             Button {
                                 focusedField = nil
@@ -248,7 +220,6 @@ struct AddEditMedicationView: View {
                             .buttonStyle(.plain)
                         }
                         
-                        // Frequency
                         SectionCard(title: "Frequency") {
                             Menu {
                                 Button("Daily") { frequencySelection = .daily }
@@ -285,19 +256,36 @@ struct AddEditMedicationView: View {
                     .padding(.horizontal, sidePadding)
                     .padding(.top, 12)
                     
-                    Button {
-                        save()
-                    } label: {
-                        Text("Save")
-                            .font(AppFont.poppins(size: 18, weight: .semibold))
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: saveHeight)
-                            .background(isSaveEnabled ? AppColors.yellow : AppColors.gray.opacity(0.45))
-                            .clipShape(RoundedRectangle(cornerRadius: saveCorner, style: .continuous))
+                    VStack(spacing: 10) {
+                        Button {
+                            save()
+                        } label: {
+                            Text("Save")
+                                .font(AppFont.poppins(size: 18, weight: .semibold))
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: saveHeight)
+                                .background(isSaveEnabled ? AppColors.yellow : AppColors.gray.opacity(0.45))
+                                .clipShape(RoundedRectangle(cornerRadius: saveCorner, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!isSaveEnabled)
+
+                        if isEditMode {
+                            Button {
+                                showDeleteConfirm = true
+                            } label: {
+                                Text("Delete")
+                                    .font(AppFont.poppins(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: saveHeight)
+                                    .background(Color(hex: "B70F0F"))
+                                    .clipShape(RoundedRectangle(cornerRadius: saveCorner, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!isSaveEnabled)
                     .padding(.horizontal, sidePadding)
                     .padding(.bottom, bottomSafePaddingToButton)
                 }
@@ -308,7 +296,6 @@ struct AddEditMedicationView: View {
         }
         
         
-        // Hide system bar; we use our own
         .navigationBarHidden(true)
         
         .toolbar {
@@ -329,18 +316,28 @@ struct AddEditMedicationView: View {
         
         .confirmationDialog("Packaging photo", isPresented: $showPackagingDialog, titleVisibility: .visible) {
             Button("Take photo") { showPackagingCamera = true }
-            Button("Choose from gallery") { showPackagingGallery = true } // ✅ сразу откроется
+            Button("Choose from gallery") { showPackagingGallery = true }
             Button("Cancel", role: .cancel) { }
         }
 
         .confirmationDialog("Instructions", isPresented: $showInstructionDialog, titleVisibility: .visible) {
             Button("Take photo") { showInstructionCamera = true }
-            Button("Choose photo from gallery") { showInstructionGallery = true } // ✅ сразу откроется
+            Button("Choose photo from gallery") { showInstructionGallery = true }
             Button("Choose PDF from Files") { showPDFImporter = true }
             Button("Cancel", role: .cancel) { }
         }
+        .confirmationDialog("Delete medication?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if case .edit(let id) = mode {
+                    store.deleteMedication(id: id)
+                    dismiss()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will remove the medication, its events, and pending reminders.")
+        }
         
-        // MARK: Camera sheets
         .fullScreenCover(isPresented: $showPackagingCamera) {
             ImagePicker(sourceType: .camera) { img in
                 setNewPackagingImage(img)
@@ -354,7 +351,6 @@ struct AddEditMedicationView: View {
             .ignoresSafeArea()
         }
         
-        // MARK: Gallery sheets
         .sheet(isPresented: $showPackagingGallery) {
             PhotoLibraryPicker(
                 onPicked: { image in
@@ -401,7 +397,6 @@ struct AddEditMedicationView: View {
             }
         }
         
-        // MARK: PDF importer
         .fileImporter(
             isPresented: $showPDFImporter,
             allowedContentTypes: [.pdf],
@@ -410,7 +405,6 @@ struct AddEditMedicationView: View {
             handlePDFImport(result)
         }
         
-        // MARK: Time sheet (wheel)
         .sheet(isPresented: $showTimeSheet) {
             PickerSheet(title: "Time", onDone: { showTimeSheet = false }) {
                 DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
@@ -422,7 +416,6 @@ struct AddEditMedicationView: View {
             .presentationDragIndicator(.visible)
         }
         
-        // MARK: Date sheet (wheel)
         .sheet(isPresented: $showStartDateSheet) {
             PickerSheet(title: "Start date", onDone: { showStartDateSheet = false }) {
                 DatePicker("", selection: $startDate, displayedComponents: .date)
@@ -434,7 +427,6 @@ struct AddEditMedicationView: View {
             .presentationDragIndicator(.visible)
         }
         
-        // MARK: Custom weekdays full screen
         .fullScreenCover(isPresented: $showCustomDaysFullScreen) {
             CustomWeekdaysFullScreen(
                 selected: $customWeekdays,
@@ -451,7 +443,6 @@ struct AddEditMedicationView: View {
     }
     
     
-    // MARK: - Preload for edit mode
     
     private func preloadIfNeeded() {
         guard !didPreload else { return }
@@ -500,12 +491,10 @@ struct AddEditMedicationView: View {
         }
     }
     
-    // MARK: - Save
     
     private func save() {
         var attachments: [AttachmentRef] = []
         
-        // Packaging image
         if let img = packagingUIImage {
             do {
                 let relPath = try LocalAttachmentsManager.shared.saveJPEG(image: img, compressionQuality: 0.9)
@@ -517,7 +506,6 @@ struct AddEditMedicationView: View {
             attachments.append(existingPackagingRef)
         }
         
-        // Instruction: photo or PDF
         if let img = instructionUIImage {
             do {
                 let relPath = try LocalAttachmentsManager.shared.saveJPEG(image: img, compressionQuality: 0.9)
@@ -536,7 +524,6 @@ struct AddEditMedicationView: View {
             attachments.append(existingInstructionRef)
         }
         
-        // Frequency model
         let freq: MedicationFrequency = {
             switch frequencySelection {
             case .daily:
@@ -550,15 +537,15 @@ struct AddEditMedicationView: View {
             }
         }()
         
-        // Build medication model
         let med = Medication(
             id: existingIdIfEdit(),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             subtitle: "\(dosage.trimmingCharacters(in: .whitespacesAndNewlines)) mg",
             category: selectedCategory,
-            expiryDate: startDate, // NOTE: temporarily mapped to "Start date"
+            expiryDate: startDate,
             intakeTime: TimeOfDay(date: time),
             frequency: freq,
+            notificationsEnabled: existingNotificationsEnabledIfEdit() ?? true,
             attachments: attachments,
             createdAt: existingCreatedAtIfEdit() ?? Date(),
             updatedAt: Date()
@@ -587,8 +574,14 @@ struct AddEditMedicationView: View {
         case .edit(let id): return store.medication(by: id)?.createdAt
         }
     }
+
+    private func existingNotificationsEnabledIfEdit() -> Bool? {
+        switch mode {
+        case .create: return nil
+        case .edit(let id): return store.medication(by: id)?.notificationsEnabled
+        }
+    }
     
-    // MARK: - Frequency title
     
     private var frequencyTitle: String {
         switch frequencySelection {
@@ -605,8 +598,12 @@ struct AddEditMedicationView: View {
             return "Custom (\(joined))"
         }
     }
+
+    private var isEditMode: Bool {
+        if case .edit = mode { return true }
+        return false
+    }
     
-    // MARK: - Formatters
     
     private func timeFormatted(_ date: Date) -> String {
         let f = DateFormatter()
@@ -631,7 +628,6 @@ struct AddEditMedicationView: View {
         return cal.date(from: comps) ?? Date()
     }
     
-    // MARK: - Load image from PhotosPicker item
     
     private func loadImage(from item: PhotosPickerItem, completion: @escaping (UIImage) -> Void) {
         Task {
@@ -681,7 +677,6 @@ struct AddEditMedicationView: View {
         existingInstructionUIImage = nil
     }
     
-    // MARK: - PDF Import
     
     private func handlePDFImport(_ result: Result<[URL], Error>) {
         do {
@@ -696,7 +691,6 @@ struct AddEditMedicationView: View {
     }
 }
 
-// MARK: - Frequency selection helper
 
 private enum FrequencySelection {
     case daily
@@ -705,9 +699,7 @@ private enum FrequencySelection {
     case custom
 }
 
-// MARK: - UI Components (match screenshot: card + inset)
 
-// Outer card with label
 private struct SectionCard<Content: View>: View {
     
     let title: String
@@ -731,7 +723,6 @@ private struct SectionCard<Content: View>: View {
     }
 }
 
-// Inner inset field
 private struct InsetField<Content: View>: View {
     
     @ViewBuilder let content: Content
@@ -751,7 +742,6 @@ private struct InsetField<Content: View>: View {
     }
 }
 
-// Attachment inset (big box)
 private struct AttachmentInset: View {
     
     let image: UIImage?
@@ -798,7 +788,6 @@ private struct AttachmentInset: View {
     }
 }
 
-// Camera + plus icon (SF Symbols)
 private struct CameraPlusIcon: View {
     var body: some View {
         ZStack {
@@ -821,7 +810,6 @@ private struct CameraPlusIcon: View {
     }
 }
 
-// MARK: - Gallery Picker Sheet
 
 private struct GalleryPickerSheet: View {
     
@@ -860,7 +848,6 @@ private struct GalleryPickerSheet: View {
     }
 }
 
-// MARK: - Picker Sheet (Wheel)
 
 private struct PickerSheet<Content: View>: View {
     
@@ -896,7 +883,6 @@ private struct PickerSheet<Content: View>: View {
     }
 }
 
-// MARK: - Custom weekdays full screen
 
 private struct CustomWeekdaysFullScreen: View {
     
@@ -910,7 +896,6 @@ private struct CustomWeekdaysFullScreen: View {
             AppColors.background.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Your navbar behavior: back left, title right edge
                 AppNavBar(title: "Custom days", showsBack: true, onBackTap: onClose)
                 
                 ScrollView(showsIndicators: false) {
@@ -958,7 +943,6 @@ private struct CustomWeekdaysFullScreen: View {
     }
 }
 
-// MARK: - UIKit Camera Picker Wrapper (iOS 16)
 
 private struct ImagePicker: UIViewControllerRepresentable {
     
@@ -979,7 +963,6 @@ private struct ImagePicker: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {
-        // no-op
     }
     
     func makeCoordinator() -> Coordinator {
@@ -1009,7 +992,6 @@ private struct ImagePicker: UIViewControllerRepresentable {
     
 }
 
-// MARK: - Preview
 
 #Preview {
     NavigationStack {
@@ -1022,17 +1004,13 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
-/// Opens the system photo picker immediately (iOS 14+).
 struct PhotoLibraryPicker: UIViewControllerRepresentable {
 
-    /// Called when user picked an image.
     let onPicked: (UIImage) -> Void
 
-    /// Called when user cancelled.
     let onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
-        // Configure picker to allow only images, single selection.
         var configuration = PHPickerConfiguration(photoLibrary: .shared())
         configuration.filter = .images
         configuration.selectionLimit = 1
@@ -1043,7 +1021,6 @@ struct PhotoLibraryPicker: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {
-        // No dynamic updates needed.
     }
 
     func makeCoordinator() -> Coordinator {
@@ -1061,13 +1038,11 @@ struct PhotoLibraryPicker: UIViewControllerRepresentable {
         }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            // User cancelled
             guard let provider = results.first?.itemProvider else {
                 onCancel()
                 return
             }
 
-            // Load UIImage
             if provider.canLoadObject(ofClass: UIImage.self) {
                 provider.loadObject(ofClass: UIImage.self) { object, _ in
                     guard let image = object as? UIImage else {

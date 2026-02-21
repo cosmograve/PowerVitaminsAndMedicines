@@ -1,11 +1,8 @@
 import SwiftUI
 
-// MARK: - Color + Hex
 
 extension Color {
 
-    /// Create SwiftUI Color from hex string.
-    /// Supports: "RRGGBB", "#RRGGBB", "AARRGGBB", "#AARRGGBB".
     init(hex: String) {
         let cleaned = hex
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -25,13 +22,11 @@ extension Color {
         let a, r, g, b: Double
 
         if cleaned.count == 8 {
-            // AARRGGBB
             a = Double((value & 0xFF000000) >> 24) / 255.0
             r = Double((value & 0x00FF0000) >> 16) / 255.0
             g = Double((value & 0x0000FF00) >> 8) / 255.0
             b = Double(value & 0x000000FF) / 255.0
         } else {
-            // RRGGBB
             a = 1.0
             r = Double((value & 0xFF0000) >> 16) / 255.0
             g = Double((value & 0x00FF00) >> 8) / 255.0
@@ -42,7 +37,6 @@ extension Color {
     }
 }
 
-// MARK: - App Palette
 
 enum AppColors {
     static let yellow = Color(hex: "FFCC00")
